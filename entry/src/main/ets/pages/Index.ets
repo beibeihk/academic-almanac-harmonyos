@@ -37,10 +37,14 @@ struct Index {
     if (context === undefined) {
       throw new Error('Application context unavailable');
     }
-    const content: Uint8Array = context.resourceManager.getRawFileContentSync('almanac.json');
-    const decoder = util.TextDecoder.create('utf-8', { ignoreBOM: true });
-    const json: string = decoder.decodeWithStream(content, { stream: false });
-    return JSON.parse(json) as AlmanacDatabase;
+    try {
+      const content: Uint8Array = context.resourceManager.getRawFileContentSync('almanac.json');
+      const decoder = util.TextDecoder.create('utf-8', { ignoreBOM: true });
+      const json: string = decoder.decodeToString(content);
+      return JSON.parse(json) as AlmanacDatabase;
+    } catch (error) {
+      throw new Error(`Unable to load local almanac data: ${JSON.stringify(error)}`);
+    }
   }
 
   private refreshForToday(): void {
@@ -298,4 +302,3 @@ struct Index {
     }
   }
 }
-

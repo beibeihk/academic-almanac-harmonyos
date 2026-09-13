@@ -11,11 +11,10 @@
 
 ```powershell
 npm test
-devecocli build --build-mode debug
-devecocli build --build-mode release
+& "$env:DEVECO_HOME\bin\hvigorw.bat" clean assembleApp --mode project -p product=default -p buildMode=debug --no-daemon
+& "$env:DEVECO_HOME\bin\hvigorw.bat" clean assembleApp --mode project -p product=default -p buildMode=release --no-daemon
 ```
 
 构建环境见 [BUILDING.md](BUILDING.md)，隐私说明见 [PRIVACY.md](PRIVACY.md)。
 
 代码采用 MIT License；应用内原创文案与品牌素材不随代码许可开放，详见 [CONTENT_LICENSE.md](CONTENT_LICENSE.md)。
-

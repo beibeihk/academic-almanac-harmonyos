@@ -7,8 +7,13 @@ const DOMAIN: number = 0x4141;
 
 export default class EntryAbility extends UIAbility {
   onCreate(): void {
-    this.context.getApplicationContext()
-      .setColorMode(ConfigurationConstant.ColorMode.COLOR_MODE_LIGHT);
+    try {
+      this.context.getApplicationContext()
+        .setColorMode(ConfigurationConstant.ColorMode.COLOR_MODE_LIGHT);
+    } catch (error) {
+      hilog.warn(DOMAIN, 'AcademicAlmanac', 'Unable to lock light color mode: %{public}s',
+        JSON.stringify(error));
+    }
   }
 
   onWindowStageCreate(windowStage: window.WindowStage): void {
@@ -19,4 +24,3 @@ export default class EntryAbility extends UIAbility {
     });
   }
 }
-

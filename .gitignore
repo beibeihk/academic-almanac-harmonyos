@@ -12,6 +12,7 @@
 /.appanalyzer
 /.signing
 /.tooling
+/.playwright-cli
 *.p12
 *.p7b
 *.cer
@@ -20,3 +21,6 @@
 *.pem
 release-assets/screenshots/*.png
 !release-assets/screenshots/.gitkeep
+/release-assets/packages/*.hap
+/release-assets/packages/*.app
+!/release-assets/packages/.gitkeep
