@@ -1,0 +1,10 @@
+{
+  "name": "academic-almanac-harmonyos",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test scripts/almanac.test.mjs",
+    "icons": "node scripts/render-icons.mjs"
+  }
+}

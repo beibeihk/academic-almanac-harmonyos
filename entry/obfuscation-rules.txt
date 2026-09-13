@@ -1,0 +1,9 @@
+-enable-property-obfuscation
+-enable-toplevel-obfuscation
+-enable-filename-obfuscation
+-enable-export-obfuscation
+-keep-global-name AlmanacDatabase
+-keep-global-name AlmanacItem
+-keep-global-name TimeItem
+-keep-global-name FortuneItem
+

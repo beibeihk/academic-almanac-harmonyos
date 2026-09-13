@@ -1,0 +1,17 @@
+{
+  "string": [
+    {
+      "name": "module_desc",
+      "value": "每日离线生成科研趣味宜忌"
+    },
+    {
+      "name": "EntryAbility_desc",
+      "value": "学术黄历主页面"
+    },
+    {
+      "name": "EntryAbility_label",
+      "value": "学术黄历"
+    }
+  ]
+}
+
