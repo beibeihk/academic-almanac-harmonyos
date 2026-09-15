@@ -13,15 +13,21 @@ const INK: ResourceColor = '#26221D';
 const MUTED: ResourceColor = '#766E64';
 const CINNABAR: ResourceColor = '#A63228';
 const LINE: ResourceColor = '#DDD2C1';
+const PRIVACY_CONSENT_KEY: string = 'privacyConsentV1';
+
+PersistentStorage.persistProp(PRIVACY_CONSENT_KEY, false);
 
 @Entry
 @Component
 struct Index {
+  @StorageLink('privacyConsentV1') private privacyAccepted: boolean = false;
   @State private almanac: DailyAlmanac | null = null;
   @State private dateText: string = '';
   @State private weekdayText: string = '';
   @State private visibleDateKey: string = '';
   @State private showAbout: boolean = false;
+  @State private showPrivacyDetails: boolean = false;
+  @State private privacyRejected: boolean = false;
 
   aboutToAppear(): void {
     this.refreshForToday();
@@ -45,6 +51,163 @@ struct Index {
     } catch (error) {
       console.error(`Failed to generate almanac: ${JSON.stringify(error)}`);
     }
+  }
+
+  private acceptPrivacy(): void {
+    this.privacyAccepted = true;
+    this.showPrivacyDetails = false;
+    this.privacyRejected = false;
+  }
+
+  @Builder
+  private PrivacyConsentCard() {
+    Column({ space: 13 }) {
+      Text(this.privacyRejected ? '需要您的同意' : '隐私保护提示')
+        .fontSize(22)
+        .fontWeight(FontWeight.Bold)
+        .fontColor(INK)
+        .width('100%')
+
+      if (this.privacyRejected) {
+        Text('您尚未同意隐私政策，因此暂时不能进入应用主功能。学术黄历不会在您同意前处理任何个人信息。')
+          .fontSize(14)
+          .lineHeight(23)
+          .fontColor(INK)
+          .width('100%')
+      } else {
+        Text('欢迎使用学术黄历。请您在使用前认真阅读并理解《隐私政策》。')
+          .fontSize(15)
+          .lineHeight(24)
+          .fontColor(INK)
+          .width('100%')
+        Text('本应用无需注册登录，核心功能完全离线运行；不收集、存储、上传或共享任何个人信息；不申请位置、通讯录、照片等敏感权限；不含广告与第三方统计 SDK。')
+          .fontSize(13)
+          .lineHeight(22)
+          .fontColor(MUTED)
+          .width('100%')
+      }
+
+      Text('查看完整《隐私政策》')
+        .id('privacy_view_policy')
+        .fontSize(14)
+        .fontColor(CINNABAR)
+        .fontWeight(FontWeight.Medium)
+        .width('100%')
+        .onClick(() => this.showPrivacyDetails = true)
+
+      if (this.privacyRejected) {
+        Button('重新阅读并选择')
+          .id('privacy_reconsider')
+          .fontSize(14)
+          .fontColor(Color.White)
+          .backgroundColor(CINNABAR)
+          .borderRadius(18)
+          .width('100%')
+          .height(40)
+          .onClick(() => this.privacyRejected = false)
+      } else {
+        Row({ space: 10 }) {
+          Button('暂不同意')
+            .id('privacy_reject')
+            .fontSize(14)
+            .fontColor(MUTED)
+            .backgroundColor('#EFE7DA')
+            .borderRadius(18)
+            .layoutWeight(1)
+            .height(40)
+            .onClick(() => this.privacyRejected = true)
+          Button('同意并继续')
+            .id('privacy_accept')
+            .fontSize(14)
+            .fontColor(Color.White)
+            .backgroundColor(CINNABAR)
+            .borderRadius(18)
+            .layoutWeight(1)
+            .height(40)
+            .onClick(() => this.acceptPrivacy())
+        }
+        .width('100%')
+      }
+    }
+    .alignItems(HorizontalAlign.Start)
+    .width('88%')
+    .padding({ left: 20, right: 20, top: 22, bottom: 20 })
+    .backgroundColor(PAPER_CARD)
+    .borderRadius(18)
+    .border({ width: 1, color: LINE })
+  }
+
+  @Builder
+  private PrivacyPolicyCard() {
+    Column({ space: 12 }) {
+      Text('学术黄历隐私政策')
+        .fontSize(21)
+        .fontWeight(FontWeight.Bold)
+        .fontColor(INK)
+        .width('100%')
+      Text('生效及更新日期：2026年9月16日')
+        .fontSize(11)
+        .fontColor(MUTED)
+        .width('100%')
+
+      Scroll() {
+        Column({ space: 12 }) {
+          Text('1. 信息处理').fontSize(15).fontWeight(FontWeight.Bold).fontColor(INK).width('100%')
+          Text('本应用不要求注册或登录，不收集、存储、上传、出售或共享任何个人信息。每日黄历内容仅依据设备本地日期和应用内置原创文案在本地生成。')
+            .fontSize(13).lineHeight(21).fontColor(INK)
+          Text('2. 设备权限与联网').fontSize(15).fontWeight(FontWeight.Bold).fontColor(INK).width('100%')
+          Text('本应用不申请位置、通讯录、相机、麦克风、照片、存储或设备标识符等权限，核心功能无需联网，不含广告及第三方统计 SDK。')
+            .fontSize(13).lineHeight(21).fontColor(INK)
+          Text('3. 数据共享与保存').fontSize(15).fontWeight(FontWeight.Bold).fontColor(INK).width('100%')
+          Text('由于本应用不收集个人信息，因此不存在向第三方提供个人信息或将个人信息传输至境外的情形。您的同意状态仅保存在本机，用于避免重复提示。')
+            .fontSize(13).lineHeight(21).fontColor(INK)
+          Text('4. 您的权利').fontSize(15).fontWeight(FontWeight.Bold).fontColor(INK).width('100%')
+          Text('您可以选择不同意本政策并停止使用应用，也可以通过卸载应用清除本机保存的同意状态。')
+            .fontSize(13).lineHeight(21).fontColor(INK)
+          Text('5. 联系我们').fontSize(15).fontWeight(FontWeight.Bold).fontColor(INK).width('100%')
+          Text('如对本政策有疑问，请联系：huangkun123huang@163.com')
+            .fontSize(13).lineHeight(21).fontColor(INK)
+        }
+        .alignItems(HorizontalAlign.Start)
+        .width('100%')
+      }
+      .layoutWeight(1)
+      .scrollBar(BarState.Auto)
+
+      Button('返回并继续选择')
+        .id('privacy_details_back')
+        .fontSize(14)
+        .fontColor(Color.White)
+        .backgroundColor(CINNABAR)
+        .borderRadius(18)
+        .width('100%')
+        .height(40)
+        .onClick(() => this.showPrivacyDetails = false)
+    }
+    .alignItems(HorizontalAlign.Start)
+    .width('88%')
+    .height('82%')
+    .padding({ left: 20, right: 20, top: 22, bottom: 18 })
+    .backgroundColor(PAPER_CARD)
+    .borderRadius(18)
+    .border({ width: 1, color: LINE })
+  }
+
+  @Builder
+  private PrivacyOverlay() {
+    Column() {
+      if (this.showPrivacyDetails) {
+        this.PrivacyPolicyCard()
+      } else {
+        this.PrivacyConsentCard()
+      }
+    }
+    .id('privacy_overlay')
+    .justifyContent(FlexAlign.Center)
+    .alignItems(HorizontalAlign.Center)
+    .width('100%')
+    .height('100%')
+    .backgroundColor('#99000000')
   }
 
   @Builder
@@ -267,7 +430,7 @@ struct Index {
         .lineHeight(22)
         .fontColor(MUTED)
       Blank()
-      Text('版本 1.0.1')
+      Text('版本 1.0.2')
         .fontSize(12)
         .fontColor('#9A9187')
     }
@@ -279,10 +442,17 @@ struct Index {
   }
 
   build() {
-    if (this.showAbout) {
-      this.AboutPage()
-    } else {
-      this.MainPage()
+    Stack({ alignContent: Alignment.Center }) {
+      if (this.showAbout) {
+        this.AboutPage()
+      } else {
+        this.MainPage()
+      }
+      if (!this.privacyAccepted) {
+        this.PrivacyOverlay()
+      }
     }
+    .width('100%')
+    .height('100%')
   }
 }

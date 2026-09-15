@@ -86,3 +86,15 @@ test('首屏数据编译进 ArkTS，不依赖运行时资源读取', async () =>
   assert.match(indexText, /generateAlmanac\(ALMANAC_DATABASE, now\)/);
   assert.equal(/resourceManager|getRawFileContentSync|TextDecoder/.test(indexText), false);
 });
+
+test('首次启动必须明确取得并持久保存隐私同意', async () => {
+  const indexText = await readFile(indexUrl, 'utf8');
+  assert.match(indexText, /PersistentStorage\.persistProp\(PRIVACY_CONSENT_KEY, false\)/);
+  assert.match(indexText, /@StorageLink\('privacyConsentV1'\)/);
+  assert.match(indexText, /id\('privacy_overlay'\)/);
+  assert.match(indexText, /id\('privacy_view_policy'\)/);
+  assert.match(indexText, /id\('privacy_reject'\)/);
+  assert.match(indexText, /id\('privacy_accept'\)/);
+  assert.match(indexText, /if \(!this\.privacyAccepted\)/);
+  assert.match(indexText, /不收集、存储、上传或共享任何个人信息/);
+});
