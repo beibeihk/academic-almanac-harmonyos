@@ -1,12 +1,11 @@
-import { util } from '@kit.ArkTS';
 import {
-  AlmanacDatabase,
   AlmanacItem,
   DailyAlmanac,
   formatChineseDate,
   formatWeekday,
   generateAlmanac
 } from '../model/AlmanacEngine';
+import { ALMANAC_DATABASE } from '../model/AlmanacData';
 
 const PAPER: ResourceColor = '#F7F2E8';
 const PAPER_CARD: ResourceColor = '#FFFCF5';
@@ -32,21 +31,6 @@ struct Index {
     this.refreshForToday();
   }
 
-  private loadDatabase(): AlmanacDatabase {
-    const context = this.getUIContext().getHostContext();
-    if (context === undefined) {
-      throw new Error('Application context unavailable');
-    }
-    try {
-      const content: Uint8Array = context.resourceManager.getRawFileContentSync('almanac.json');
-      const decoder = util.TextDecoder.create('utf-8', { ignoreBOM: true });
-      const json: string = decoder.decodeToString(content);
-      return JSON.parse(json) as AlmanacDatabase;
-    } catch (error) {
-      throw new Error(`Unable to load local almanac data: ${JSON.stringify(error)}`);
-    }
-  }
-
   private refreshForToday(): void {
     const now: Date = new Date();
     const key: string = `${now.getFullYear()}-${now.getMonth() + 1}-${now.getDate()}`;
@@ -54,7 +38,7 @@ struct Index {
       return;
     }
     try {
-      this.almanac = generateAlmanac(this.loadDatabase(), now);
+      this.almanac = generateAlmanac(ALMANAC_DATABASE, now);
       this.dateText = formatChineseDate(now);
       this.weekdayText = formatWeekday(now);
       this.visibleDateKey = key;
@@ -283,7 +267,7 @@ struct Index {
         .lineHeight(22)
         .fontColor(MUTED)
       Blank()
-      Text('版本 1.0.0')
+      Text('版本 1.0.1')
         .fontSize(12)
         .fontColor('#9A9187')
     }

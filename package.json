@@ -1,9 +1,11 @@
 {
   "name": "academic-almanac-harmonyos",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "private": true,
   "type": "module",
   "scripts": {
+    "generate:data": "node scripts/generate-almanac-data.mjs",
+    "pretest": "npm run generate:data",
     "test": "node --test scripts/almanac.test.mjs",
     "icons": "node scripts/render-icons.mjs"
   }

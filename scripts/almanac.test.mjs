@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 import {
@@ -10,6 +11,8 @@ import {
 
 const dataUrl = new URL('../entry/src/main/resources/rawfile/almanac.json', import.meta.url);
 const moduleUrl = new URL('../entry/src/main/module.json5', import.meta.url);
+const generatedDataUrl = new URL('../entry/src/main/ets/model/AlmanacData.ts', import.meta.url);
+const indexUrl = new URL('../entry/src/main/ets/pages/Index.ets', import.meta.url);
 const raw = await readFile(dataUrl, 'utf8');
 const database = JSON.parse(raw);
 
@@ -73,4 +76,13 @@ test('连续 365 天生成稳定、无重复标题、无严重标签冲突', () 
 test('应用模块未声明网络或敏感权限', async () => {
   const moduleText = await readFile(moduleUrl, 'utf8');
   assert.equal(/requestPermissions|ohos\.permission\./.test(moduleText), false);
+});
+
+test('首屏数据编译进 ArkTS，不依赖运行时资源读取', async () => {
+  const generatedText = await readFile(generatedDataUrl, 'utf8');
+  const indexText = await readFile(indexUrl, 'utf8');
+  const digest = createHash('sha256').update(raw).digest('hex');
+  assert.match(generatedText, new RegExp(`ALMANAC_DATA_SHA256: string = '${digest}'`));
+  assert.match(indexText, /generateAlmanac\(ALMANAC_DATABASE, now\)/);
+  assert.equal(/resourceManager|getRawFileContentSync|TextDecoder/.test(indexText), false);
 });
