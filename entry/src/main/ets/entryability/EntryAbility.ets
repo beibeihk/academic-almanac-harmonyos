@@ -6,6 +6,10 @@ import { window } from '@kit.ArkUI';
 const DOMAIN: number = 0x4141;
 
 export default class EntryAbility extends UIAbility {
+  onForeground(): void {
+    AppStorage.setOrCreate('almanacForegroundTick', Date.now());
+  }
+
   onCreate(): void {
     try {
       this.context.getApplicationContext()
