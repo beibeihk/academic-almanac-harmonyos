@@ -1,10 +1,11 @@
 {
   "name": "academic-almanac-harmonyos",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "private": true,
   "type": "module",
   "scripts": {
-    "generate:data": "node scripts/generate-almanac-data.mjs",
+    "generate:disciplines": "node scripts/generate-discipline-corpus.mjs",
+    "generate:data": "npm run generate:disciplines && node scripts/generate-almanac-data.mjs && node scripts/generate-android-assets.mjs",
     "pretest": "npm run generate:data",
     "test": "node --test scripts/almanac.test.mjs",
     "icons": "node scripts/render-icons.mjs"

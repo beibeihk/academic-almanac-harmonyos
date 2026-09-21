@@ -1,0 +1,39 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'com.beibeihk.academicalmanac'
+    compileSdk 35
+
+    defaultConfig {
+        applicationId 'com.beibeihk.academicalmanac.android'
+        minSdk 26
+        targetSdk 35
+        versionCode 1002000
+        versionName '1.2.0'
+    }
+
+    signingConfigs {
+        release {
+            if (System.getenv('ACADEMIC_KEYSTORE_PATH')) {
+                storeFile file(System.getenv('ACADEMIC_KEYSTORE_PATH'))
+                storePassword System.getenv('ACADEMIC_KEYSTORE_PASSWORD')
+                keyAlias System.getenv('ACADEMIC_KEY_ALIAS')
+                keyPassword System.getenv('ACADEMIC_KEY_PASSWORD')
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            shrinkResources false
+            if (System.getenv('ACADEMIC_KEYSTORE_PATH')) signingConfig signingConfigs.release
+        }
+    }
+
+    sourceSets {
+        main.assets.srcDirs += ['../../entry/src/main/resources/rawfile']
+    }
+}

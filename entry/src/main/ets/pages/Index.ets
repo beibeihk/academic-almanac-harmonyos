@@ -4,6 +4,8 @@ import {
   formatChineseDate,
   formatWeekday,
   generateAlmanac,
+  disciplineNames,
+  isKnownDiscipline,
   localDateKey
 } from '../model/AlmanacEngine';
 import { ALMANAC_DATABASE } from '../model/AlmanacData';
@@ -22,15 +24,18 @@ const CINNABAR: ResourceColor = '#A63228';
 const LINE: ResourceColor = '#DDD2C1';
 const PRIVACY_CONSENT_KEY: string = 'privacyConsentV2';
 const WORKSPACE_KEY: string = 'researchWorkspaceV1';
+const DISCIPLINE_KEY: string = 'academicDisciplineV1';
 
 PersistentStorage.persistProp(PRIVACY_CONSENT_KEY, false);
 PersistentStorage.persistProp(WORKSPACE_KEY, '');
+PersistentStorage.persistProp(DISCIPLINE_KEY, '');
 
 @Entry
 @Component
 struct Index {
   @StorageLink('privacyConsentV2') private privacyAccepted: boolean = false;
   @StorageLink('researchWorkspaceV1') private workspaceRaw: string = '';
+  @StorageLink('academicDisciplineV1') private selectedDiscipline: string = '';
   @StorageLink('almanacForegroundTick') @Watch('handleForeground') private foregroundTick: number = 0;
   @State private almanac: DailyAlmanac | null = null;
   @State private dateText: string = '';
@@ -40,6 +45,8 @@ struct Index {
   @State private showPrivacyDetails: boolean = false;
   @State private privacyRejected: boolean = false;
   @State private activeSection: number = 0;
+  @State private showDisciplinePicker: boolean = false;
+  @State private disciplineDraft: string = '';
   @State private selectedDateKey: string = localDateKey(new Date());
   @State private workspace: WorkspaceData = emptyWorkspace();
   @State private showCalendar: boolean = false;
@@ -61,6 +68,7 @@ struct Index {
   private focusDurations: number[] = [15, 25, 45, 60];
   private tabLabels: string[] = ['黄历', '计划', '专注', '回顾'];
   private weekLabels: string[] = ['一', '二', '三', '四', '五', '六', '日'];
+  private disciplineOptions: string[] = disciplineNames(ALMANAC_DATABASE);
   private focusDeadline: number = 0;
   private focusInterval: number = -1;
   private focusId: string = '';
@@ -68,6 +76,10 @@ struct Index {
   private todayKey: string = '';
 
   aboutToAppear(): void {
+    if (this.selectedDiscipline && !isKnownDiscipline(ALMANAC_DATABASE, this.selectedDiscipline)) {
+      this.selectedDiscipline = '';
+    }
+    this.disciplineDraft = this.selectedDiscipline;
     this.refreshForToday();
     if (this.privacyAccepted) this.loadWorkspace();
   }
@@ -94,6 +106,10 @@ struct Index {
       }
       return false;
     }
+    if (this.showDisciplinePicker) {
+      if (this.selectedDiscipline) this.showDisciplinePicker = false;
+      return true;
+    }
     if (this.showCalendar) this.showCalendar = false;
     else if (this.showPrivacyDetails) this.showPrivacyDetails = false;
     else if (this.showAbout) this.showAbout = false;
@@ -110,7 +126,7 @@ struct Index {
     }
     this.todayKey = key;
     if (this.selectedDateKey === key && this.visibleDateKey !== key) {
-      this.almanac = generateAlmanac(ALMANAC_DATABASE, now);
+      this.almanac = generateAlmanac(ALMANAC_DATABASE, now, this.selectedDiscipline);
       this.updateDateLabels(now);
       this.loadReview();
     } else if (this.almanac === null) {
@@ -128,7 +144,7 @@ struct Index {
     if (!parseDateInput(key)) return;
     const date: Date = dateFromKey(key);
     try {
-      this.almanac = generateAlmanac(ALMANAC_DATABASE, date);
+      this.almanac = generateAlmanac(ALMANAC_DATABASE, date, this.selectedDiscipline);
       this.selectedDateKey = key;
       this.updateDateLabels(date);
       this.loadReview();
@@ -161,6 +177,19 @@ struct Index {
     if (!this.privacyAccepted) return;
     this.workspace = data;
     this.workspaceRaw = JSON.stringify(data);
+  }
+
+  private saveDiscipline(): void {
+    if (!isKnownDiscipline(ALMANAC_DATABASE, this.disciplineDraft)) return;
+    this.selectedDiscipline = this.disciplineDraft;
+    this.showDisciplinePicker = false;
+    this.changeDate(this.selectedDateKey);
+    this.feedback = `已切换为${this.selectedDiscipline}，日签将混合通用与本学科内容。`;
+  }
+
+  private openDisciplinePicker(): void {
+    this.disciplineDraft = this.selectedDiscipline;
+    this.showDisciplinePicker = true;
   }
 
   private nextId(prefix: string): string {
@@ -289,7 +318,7 @@ struct Index {
   }
 
   private favoriteQuote(key: string): string {
-    return generateAlmanac(ALMANAC_DATABASE, dateFromKey(key)).quote.text;
+    return generateAlmanac(ALMANAC_DATABASE, dateFromKey(key), this.selectedDiscipline).quote.text;
   }
 
   @Builder
@@ -313,7 +342,7 @@ struct Index {
           .lineHeight(24)
           .fontColor(INK)
           .width('100%')
-        Text('本应用无需注册登录，全部功能离线运行；您填写的计划、回顾、收藏及专注记录仅保存在本机，不上传或共享；不申请敏感权限，不含广告与第三方统计 SDK。')
+        Text('本应用无需注册登录，全部功能离线运行；您选择的学科门类及填写的计划、回顾、收藏和专注记录仅保存在本机，不上传或共享；不申请敏感权限，不含广告与第三方统计 SDK。')
           .fontSize(13)
           .lineHeight(22)
           .fontColor(MUTED)
@@ -378,7 +407,7 @@ struct Index {
         .fontWeight(FontWeight.Bold)
         .fontColor(INK)
         .width('100%')
-      Text('生效及更新日期：2026年9月17日')
+      Text('生效及更新日期：2026年9月21日')
         .fontSize(11)
         .fontColor(MUTED)
         .width('100%')
@@ -386,16 +415,16 @@ struct Index {
       Scroll() {
         Column({ space: 12 }) {
           Text('1. 信息处理').fontSize(15).fontWeight(FontWeight.Bold).fontColor(INK).width('100%')
-          Text('本应用不要求注册或登录。每日黄历依据设备本地日期与内置原创文案生成。您主动填写的计划与回顾，以及收藏日期、已完成专注的日期、时长和分类，只保存在应用私有的本机存储内，不上传、出售或共享。请勿填写不必要的敏感信息。')
+          Text('本应用不要求注册或登录。每日黄历依据设备本地日期、您主动选择的学科门类与内置原创文案生成。学科选择、计划与回顾，以及收藏日期、已完成专注的日期、时长和分类，只保存在应用私有的本机存储内，不上传、出售或共享。请勿填写不必要的敏感信息。')
             .fontSize(13).lineHeight(21).fontColor(INK)
           Text('2. 设备权限与联网').fontSize(15).fontWeight(FontWeight.Bold).fontColor(INK).width('100%')
           Text('本应用不申请位置、通讯录、相机、麦克风、照片、存储或设备标识符等权限，核心功能无需联网，不含广告及第三方统计 SDK。')
             .fontSize(13).lineHeight(21).fontColor(INK)
           Text('3. 数据共享与保存').fontSize(15).fontWeight(FontWeight.Bold).fontColor(INK).width('100%')
-          Text('本应用没有服务器，没有向第三方提供数据或传输至境外的功能。本机保存隐私同意状态、最多500条计划、60天收藏、2000段专注记录及1000天回顾（每条最多400字）。达到上限会提示，不会静默覆盖旧记录。未完成计时只在本次运行内保存，结束应用后重置。')
+          Text('本应用没有服务器，没有向第三方提供数据或传输至境外的功能。本机保存隐私同意状态、一个学科门类选择、最多500条计划、60天收藏、2000段专注记录及1000天回顾（每条最多400字）。达到上限会提示，不会静默覆盖旧记录。未完成计时只在本次运行内保存，结束应用后重置。')
             .fontSize(13).lineHeight(21).fontColor(INK)
           Text('4. 您的权利').fontSize(15).fontWeight(FontWeight.Bold).fontColor(INK).width('100%')
-          Text('您可选择不同意并停止使用，也可修改或移除自己的计划、取消收藏、编辑回顾。在关于页确认「清除本机记录」可删除全部计划、收藏、专注及回顾；卸载应用也会清除本机数据和同意状态。')
+          Text('您可选择不同意并停止使用，可随时修改学科门类，也可修改或移除自己的计划、取消收藏、编辑回顾。在关于页确认「清除本机记录」可删除学科选择、全部计划、收藏、专注及回顾；卸载应用也会清除本机数据和同意状态。')
             .fontSize(13).lineHeight(21).fontColor(INK)
           Text('5. 联系我们').fontSize(15).fontWeight(FontWeight.Bold).fontColor(INK).width('100%')
           Text('如对本政策有疑问，请联系：huangkun123huang@163.com')
@@ -436,6 +465,74 @@ struct Index {
       }
     }
     .id('privacy_overlay')
+    .justifyContent(FlexAlign.Center)
+    .alignItems(HorizontalAlign.Center)
+    .width('100%')
+    .height('100%')
+    .backgroundColor('#99000000')
+  }
+
+  @Builder
+  private DisciplineOverlay() {
+    Column() {
+      Column({ space: 12 }) {
+        Text('选择你的学科门类')
+          .fontSize(23)
+          .fontWeight(FontWeight.Bold)
+          .fontColor(INK)
+          .width('100%')
+        Text('日签会混合通用科研建议与所选学科的专属内容。选择仅保存在本机，可随时在“关于”中修改。')
+          .fontSize(13)
+          .lineHeight(21)
+          .fontColor(MUTED)
+          .width('100%')
+        Grid() {
+          ForEach(this.disciplineOptions, (discipline: string) => {
+            GridItem() {
+              Button(discipline, { type: ButtonType.Normal })
+                .id(`discipline_option_${discipline}`)
+                .fontSize(14)
+                .fontColor(this.disciplineDraft === discipline ? Color.White : INK)
+                .backgroundColor(this.disciplineDraft === discipline ? CINNABAR : '#EFE7DA')
+                .borderRadius(10)
+                .height(43)
+                .width('100%')
+                .onClick(() => this.disciplineDraft = discipline)
+            }
+          }, (discipline: string) => discipline)
+        }
+        .columnsTemplate('1fr 1fr')
+        .columnsGap(8)
+        .rowsGap(8)
+        .height(350)
+        .width('100%')
+        Button(this.disciplineDraft ? `确认选择 · ${this.disciplineDraft}` : '请选择一个学科门类')
+          .id('discipline_confirm')
+          .fontSize(14)
+          .fontColor(Color.White)
+          .backgroundColor(this.disciplineDraft ? CINNABAR : '#B8AEA3')
+          .borderRadius(18)
+          .height(42)
+          .width('100%')
+          .enabled(!!this.disciplineDraft)
+          .onClick(() => this.saveDiscipline())
+        if (this.selectedDiscipline) {
+          Button('取消修改', { type: ButtonType.Normal })
+            .fontSize(13)
+            .fontColor(MUTED)
+            .backgroundColor(Color.Transparent)
+            .height(32)
+            .onClick(() => this.showDisciplinePicker = false)
+        }
+      }
+      .alignItems(HorizontalAlign.Start)
+      .width('90%')
+      .padding({ left: 18, right: 18, top: 20, bottom: 16 })
+      .backgroundColor(PAPER_CARD)
+      .borderRadius(18)
+      .border({ width: 1, color: LINE })
+    }
+    .id('discipline_overlay')
     .justifyContent(FlexAlign.Center)
     .alignItems(HorizontalAlign.Center)
     .width('100%')
@@ -531,6 +628,15 @@ struct Index {
           Blank()
           Text(this.weekdayText).fontSize(13).fontColor(MUTED)
         }
+        .width('100%')
+
+        Row({ space: 6 }) {
+          Text('学科').fontSize(11).fontColor(MUTED)
+          Text(this.selectedDiscipline).fontSize(12).fontColor(CINNABAR)
+            .fontWeight(FontWeight.Medium)
+          Text('通用＋专属语料').fontSize(10).fontColor('#9A9187')
+        }
+        .id('discipline_badge')
         .width('100%')
 
         Divider().color(CINNABAR).strokeWidth(1)
@@ -999,6 +1105,23 @@ struct Index {
         .fontSize(14)
         .lineHeight(24)
         .fontColor(INK)
+      Column({ space: 8 }) {
+        Text('当前学科门类').fontSize(13).fontColor(MUTED).width('100%')
+        Row() {
+          Text(this.selectedDiscipline).fontSize(18).fontWeight(FontWeight.Bold).fontColor(INK)
+            .layoutWeight(1)
+          Button('修改', { type: ButtonType.Normal }).id('discipline_change')
+            .fontSize(13).fontColor(CINNABAR).backgroundColor('#EFE7DA').borderRadius(10)
+            .onClick(() => this.openDisciplinePicker())
+        }.width('100%')
+        Text('每日内容由通用科研语料与本学科专属语料共同生成。')
+          .fontSize(12).fontColor(MUTED).width('100%')
+      }
+      .width('100%')
+      .padding(14)
+      .backgroundColor(PAPER_CARD)
+      .border({ width: 1, color: LINE })
+      .borderRadius(12)
       Divider().color(LINE)
       Text('隐私说明')
         .fontSize(17)
@@ -1009,7 +1132,7 @@ struct Index {
         .fontSize(14)
         .lineHeight(24)
         .fontColor(INK)
-      Text('计划、回顾、收藏和已完成专注记录仅保存在应用私有存储中，请勿填写不必要的敏感信息。卸载应用会清除本机数据。')
+      Text('学科选择、计划、回顾、收藏和已完成专注记录仅保存在应用私有存储中，请勿填写不必要的敏感信息。卸载应用会清除本机数据。')
         .fontSize(13).lineHeight(22).fontColor(MUTED)
       Button('查看完整隐私政策', { type: ButtonType.Normal }).id('about_privacy')
         .fontSize(14).fontColor(CINNABAR).backgroundColor('#EFE7DA').width('100%')
@@ -1018,7 +1141,7 @@ struct Index {
         .fontSize(13).fontColor(MUTED).backgroundColor('#EFE7DA').width('100%')
         .onClick(() => {
           AlertDialog.show({ title: '清除全部本机记录？',
-            message: '计划、收藏、已完成专注与回顾将永久删除，无法恢复。隐私同意状态保留。',
+            message: '学科选择、计划、收藏、已完成专注与回顾将永久删除，无法恢复。隐私同意状态保留。',
             primaryButton: { value: '取消', action: () => {} },
             secondaryButton: { value: '确认清除', action: () => {
               this.focusRunning = false;
@@ -1027,8 +1150,11 @@ struct Index {
               this.focusTarget = '';
               this.taskInput = '';
               this.persistWorkspace(emptyWorkspace());
+              this.selectedDiscipline = '';
+              this.disciplineDraft = '';
               this.reviewText = '';
-              this.feedback = '本机记录已清除。';
+              this.feedback = '本机记录已清除，请重新选择学科门类。';
+              this.showAbout = false;
             } }
           });
         })
@@ -1037,7 +1163,7 @@ struct Index {
         .fontSize(13)
         .lineHeight(22)
         .fontColor(MUTED)
-      Text('版本 1.1.0')
+      Text('版本 1.2.0')
         .fontSize(12)
         .fontColor('#9A9187')
     }
@@ -1050,7 +1176,7 @@ struct Index {
 
   build() {
     Stack({ alignContent: Alignment.Center }) {
-      if (this.privacyAccepted) {
+      if (this.privacyAccepted && this.selectedDiscipline) {
         if (this.showAbout) {
           this.AboutPage()
         } else {
@@ -1064,6 +1190,9 @@ struct Index {
         }
         if (this.showCalendar) { this.CalendarOverlay() }
         if (this.showPrivacyDetails) { this.PrivacyPolicyCard() }
+      }
+      if (this.privacyAccepted && (!this.selectedDiscipline || this.showDisciplinePicker)) {
+        this.DisciplineOverlay()
       }
       if (!this.privacyAccepted) {
         this.PrivacyOverlay()

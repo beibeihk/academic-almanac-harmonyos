@@ -2,8 +2,10 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
+import vm from 'node:vm';
 import {
   fnv1a32,
+  disciplineNames,
   generateAlmanac,
   hasSevereConflict,
   localDateKey
@@ -15,14 +17,20 @@ import {
 } from '../entry/src/main/ets/model/ResearchWorkspace.ts';
 
 const dataUrl = new URL('../entry/src/main/resources/rawfile/almanac.json', import.meta.url);
+const disciplineUrl = new URL('../entry/src/main/resources/rawfile/discipline-corpus.json', import.meta.url);
 const moduleUrl = new URL('../entry/src/main/module.json5', import.meta.url);
 const generatedDataUrl = new URL('../entry/src/main/ets/model/AlmanacData.ts', import.meta.url);
 const indexUrl = new URL('../entry/src/main/ets/pages/Index.ets', import.meta.url);
+const androidHtmlUrl = new URL('../android/app/src/main/assets/index.html', import.meta.url);
 const raw = await readFile(dataUrl, 'utf8');
+const disciplineRaw = await readFile(disciplineUrl, 'utf8');
 const database = JSON.parse(raw);
+const disciplineDatabase = JSON.parse(disciplineRaw);
+database.version = '1.2.0';
+database.disciplines = disciplineDatabase.disciplines;
 
-test('JSON 文案库可完整解析且规模符合 V1', () => {
-  assert.equal(database.version, '1.0.0');
+test('通用 JSON 文案库可完整解析且规模保持稳定', () => {
+  assert.equal(database.version, '1.2.0');
   assert.ok(database.yi.length >= 50 && database.yi.length <= 60);
   assert.ok(database.ji.length >= 50 && database.ji.length <= 60);
   assert.ok(database.quotes.length >= 35 && database.quotes.length <= 40);
@@ -44,6 +52,43 @@ test('JSON 文案库可完整解析且规模符合 V1', () => {
 test('稳定 hash 与日期键结果固定', () => {
   assert.equal(fnv1a32('AcademicAlmanac-v1-20260913'), 2048715165);
   assert.equal(localDateKey(new Date(2026, 8, 13, 12, 0, 0)), '20260913');
+});
+
+test('14个学科门类与560条专属语料完整、唯一且结构合格', () => {
+  const expected = ['哲学', '经济学', '法学', '教育学', '文学', '历史学', '理学', '工学',
+    '农学', '医学', '管理学', '军事学', '艺术学', '交叉学科'];
+  assert.deepEqual(disciplineNames(database), expected);
+  const ids = [];
+  let total = 0;
+  for (const discipline of database.disciplines) {
+    assert.equal(discipline.yi.length, 16);
+    assert.equal(discipline.ji.length, 8);
+    assert.equal(discipline.quotes.length, 8);
+    assert.equal(discipline.times.length, 8);
+    for (const group of [discipline.yi, discipline.ji, discipline.quotes, discipline.times]) {
+      for (const item of group) {
+        assert.ok(item.id);
+        ids.push(item.id);
+        total++;
+      }
+    }
+  }
+  assert.equal(total, 560);
+  assert.equal(new Set(ids).size, ids.length);
+});
+
+test('同一日期按学科稳定生成，宜忌各含通用与专属内容', () => {
+  const date = new Date(2026, 8, 21, 12, 0, 0);
+  const economics = generateAlmanac(database, date, '经济学');
+  const medicine = generateAlmanac(database, date, '医学');
+  assert.deepEqual(generateAlmanac(database, date, '经济学'), economics);
+  assert.equal(economics.discipline, '经济学');
+  assert.equal(medicine.discipline, '医学');
+  assert.equal(economics.yi.filter(item => item.tags.includes('economics')).length, 1);
+  assert.equal(economics.yi.filter(item => !item.tags.includes('economics')).length, 1);
+  assert.equal(economics.ji.filter(item => item.tags.includes('economics')).length, 1);
+  assert.equal(economics.ji.filter(item => !item.tags.includes('economics')).length, 1);
+  assert.notDeepEqual(economics, medicine);
 });
 
 test('同一自然日反复生成完全一致', () => {
@@ -78,6 +123,56 @@ test('连续 365 天生成稳定、无重复标题、无严重标签冲突', () 
   assert.equal(seenDays.size, 365);
 });
 
+test('14个学科全年均有通用和专属宜忌且无严重冲突', () => {
+  for (const name of disciplineNames(database)) {
+    const profile = database.disciplines.find(item => item.name === name);
+    for (let offset = 0; offset < 365; offset++) {
+      const date = new Date(2026, 0, 1 + offset, 12, 0, 0);
+      const result = generateAlmanac(database, date, name);
+      assert.equal(result.yi.length, 2, `${name} ${result.dateKey} 宜`);
+      assert.equal(result.ji.length, 2, `${name} ${result.dateKey} 忌`);
+      assert.equal(result.yi.filter(item => profile.yi.some(source => source.id === item.id)).length, 1);
+      assert.equal(result.ji.filter(item => profile.ji.some(source => source.id === item.id)).length, 1);
+      assert.equal(new Set(result.yi.map(item => item.title)).size, 2);
+      assert.equal(new Set(result.ji.map(item => item.title)).size, 2);
+      assert.equal(hasSevereConflict(result.yi, result.ji), false,
+        `conflict on ${name} ${result.dateKey}`);
+      assert.deepEqual(generateAlmanac(database, date, name), result);
+    }
+  }
+});
+
+test('Android兼容版与原生版14个学科的全年日签一致', async () => {
+  const html = await readFile(androidHtmlUrl, 'utf8');
+  const source = html.split('<script>')[1]?.split('</script>')[0];
+  assert.ok(source?.includes('function daily(d)'));
+  const context = vm.createContext({
+    __base: JSON.parse(raw),
+    __corpus: disciplineDatabase,
+    __selection: '',
+    localStorage: { getItem: () => JSON.stringify({ discipline: context.__selection }) }
+  });
+  vm.runInContext(source.split('window.handleAndroidBack=')[0] +
+    '\nstate.base=globalThis.__base;state.corpus=globalThis.__corpus;globalThis.__daily=daily;', context);
+  for (const name of disciplineNames(database)) {
+    context.__selection = name;
+    for (let offset = 0; offset < 365; offset++) {
+      const date = new Date(2026, 0, 1 + offset, 12, 0, 0);
+      const native = generateAlmanac(database, date, name);
+      const android = JSON.parse(JSON.stringify(context.__daily(date)));
+      assert.deepEqual(android, {
+        key: native.dateKey,
+        discipline: name,
+        yi: native.yi,
+        ji: native.ji,
+        quote: native.quote,
+        time: native.time,
+        fortune: native.fortune
+      }, `${name} ${native.dateKey}`);
+    }
+  }
+});
+
 test('应用模块未声明网络或敏感权限', async () => {
   const moduleText = await readFile(moduleUrl, 'utf8');
   assert.equal(/requestPermissions|ohos\.permission\./.test(moduleText), false);
@@ -86,9 +181,9 @@ test('应用模块未声明网络或敏感权限', async () => {
 test('首屏数据编译进 ArkTS，不依赖运行时资源读取', async () => {
   const generatedText = await readFile(generatedDataUrl, 'utf8');
   const indexText = await readFile(indexUrl, 'utf8');
-  const digest = createHash('sha256').update(raw).digest('hex');
+  const digest = createHash('sha256').update(raw).update(disciplineRaw).digest('hex');
   assert.match(generatedText, new RegExp(`ALMANAC_DATA_SHA256: string = '${digest}'`));
-  assert.match(indexText, /generateAlmanac\(ALMANAC_DATABASE, now\)/);
+  assert.match(indexText, /generateAlmanac\(ALMANAC_DATABASE, now, this\.selectedDiscipline\)/);
   assert.equal(/resourceManager|getRawFileContentSync|TextDecoder/.test(indexText), false);
 });
 
@@ -103,7 +198,11 @@ test('首次启动必须明确取得并持久保存隐私同意', async () => {
   assert.match(indexText, /if \(!this\.privacyAccepted\)/);
   assert.match(indexText, /只保存在应用私有的本机存储内，不上传、出售或共享/);
   assert.match(indexText, /if \(this\.privacyAccepted\) this\.loadWorkspace\(\)/);
-  assert.match(indexText, /if \(this\.privacyAccepted\) \{\s*if \(this\.showAbout\)/);
+  assert.match(indexText, /if \(this\.privacyAccepted && this\.selectedDiscipline\)/);
+  assert.match(indexText, /PersistentStorage\.persistProp\(DISCIPLINE_KEY, ''\)/);
+  assert.match(indexText, /@StorageLink\('academicDisciplineV1'\)/);
+  assert.match(indexText, /id\('discipline_overlay'\)/);
+  assert.match(indexText, /id\('discipline_confirm'\)/);
 });
 
 test('真实日期校验、跨月及闰年历法正确', () => {

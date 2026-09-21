@@ -20,8 +20,13 @@
 *.csr
 *.key
 *.pem
+*.jks
+*.keystore
+/android/local.properties
+/android/.gradle
 release-assets/screenshots/*.png
 !release-assets/screenshots/.gitkeep
 /release-assets/packages/*.hap
 /release-assets/packages/*.app
+/release-assets/packages/*.apk
 !/release-assets/packages/.gitkeep

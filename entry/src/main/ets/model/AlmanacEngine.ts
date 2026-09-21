@@ -19,6 +19,15 @@ export interface TimeItem {
   tags: string[];
 }
 
+export interface DisciplineAlmanac {
+  id: string;
+  name: string;
+  yi: AlmanacItem[];
+  ji: AlmanacItem[];
+  quotes: QuoteItem[];
+  times: TimeItem[];
+}
+
 export interface FortuneItem {
   id: string;
   level: string;
@@ -32,6 +41,7 @@ export interface AlmanacDatabase {
   quotes: QuoteItem[];
   times: TimeItem[];
   fortunes: FortuneItem[];
+  disciplines: DisciplineAlmanac[];
 }
 
 export interface DailyAlmanac {
@@ -41,6 +51,7 @@ export interface DailyAlmanac {
   quote: QuoteItem;
   time: TimeItem;
   fortune: FortuneItem;
+  discipline: string;
 }
 
 const CONFLICT_TAGS: string[] = [
@@ -184,22 +195,56 @@ function pickIndex(length: number, seed: number): number {
   return new XorShift32(seed).nextUInt() % length;
 }
 
-export function generateAlmanac(database: AlmanacDatabase, date: Date): DailyAlmanac {
+function disciplineFor(database: AlmanacDatabase, name: string): DisciplineAlmanac | undefined {
+  for (let index: number = 0; index < database.disciplines.length; index++) {
+    if (database.disciplines[index].name === name) return database.disciplines[index];
+  }
+  return undefined;
+}
+
+export function disciplineNames(database: AlmanacDatabase): string[] {
+  return database.disciplines.map((item: DisciplineAlmanac): string => item.name);
+}
+
+export function isKnownDiscipline(database: AlmanacDatabase, name: string): boolean {
+  return disciplineFor(database, name) !== undefined;
+}
+
+export function generateAlmanac(database: AlmanacDatabase, date: Date,
+  discipline: string = ''): DailyAlmanac {
   const key: string = localDateKey(date);
-  const base: string = `AcademicAlmanac-v1-${key}`;
-  const yi: AlmanacItem[] = selectItems(database.yi, 2,
-    new XorShift32(fnv1a32(`${base}-yi`)), date.getDay(), []);
+  const profile: DisciplineAlmanac | undefined = disciplineFor(database, discipline);
+  const base: string = `AcademicAlmanac-v2-${key}-${profile ? profile.id : 'general'}`;
+  const yi: AlmanacItem[] = selectItems(database.yi, profile ? 1 : 2,
+    new XorShift32(fnv1a32(`${base}-yi-general`)), date.getDay(), []);
+  if (profile) {
+    const selectedYi: AlmanacItem[] = selectItems(profile.yi, 1,
+      new XorShift32(fnv1a32(`${base}-yi-discipline`)), date.getDay(), []);
+    if (selectedYi.length > 0) yi.push(selectedYi[0]);
+  }
   const forbidden: string[] = selectedConflictTags(yi);
-  const ji: AlmanacItem[] = selectItems(database.ji, 2,
-    new XorShift32(fnv1a32(`${base}-ji`)), date.getDay(), forbidden);
+  const ji: AlmanacItem[] = selectItems(database.ji, profile ? 1 : 2,
+    new XorShift32(fnv1a32(`${base}-ji-general`)), date.getDay(), forbidden);
+  if (profile) {
+    const selectedJi: AlmanacItem[] = selectItems(profile.ji, 1,
+      new XorShift32(fnv1a32(`${base}-ji-discipline`)), date.getDay(), forbidden);
+    if (selectedJi.length > 0) ji.push(selectedJi[0]);
+  }
+  const useDisciplineQuote: boolean = !!profile && fnv1a32(`${base}-quote-mix`) % 4 !== 0;
+  const useDisciplineTime: boolean = !!profile && fnv1a32(`${base}-time-mix`) % 4 !== 0;
+  let quotes: QuoteItem[] = database.quotes;
+  let times: TimeItem[] = database.times;
+  if (profile && useDisciplineQuote) quotes = profile.quotes;
+  if (profile && useDisciplineTime) times = profile.times;
 
   return {
     dateKey: key,
     yi: yi,
     ji: ji,
-    quote: database.quotes[pickIndex(database.quotes.length, fnv1a32(`${base}-quote`))],
-    time: database.times[pickIndex(database.times.length, fnv1a32(`${base}-time`))],
-    fortune: database.fortunes[pickIndex(database.fortunes.length, fnv1a32(`${base}-fortune`))]
+    quote: quotes[pickIndex(quotes.length, fnv1a32(`${base}-quote`))],
+    time: times[pickIndex(times.length, fnv1a32(`${base}-time`))],
+    fortune: database.fortunes[pickIndex(database.fortunes.length, fnv1a32(`${base}-fortune`))],
+    discipline: profile ? profile.name : ''
   };
 }
 
@@ -240,4 +285,3 @@ export function hasSevereConflict(yi: AlmanacItem[], ji: AlmanacItem[]): boolean
   }
   return false;
 }
-
