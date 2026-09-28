@@ -13,6 +13,7 @@
 /.signing
 /.tooling
 /.playwright-cli
+/.playwright-mcp
 /output/
 *.p12
 *.p7b
